@@ -68,7 +68,9 @@ def train_bpe(
     special_tokens_bytes = [token.encode("utf-8") for token in special_tokens]
     f = open(input_path, "rb")
     num_processes = max(1, os.cpu_count() - 1) # leave 1 CPU free
+    assert special_tokens_bytes[0] == b"<|endoftext|>", "The first special token must be <|endoftext|> for the chunk boundary finding logic to work correctly."
     boundaries = find_chunk_boundaries(f, desired_num_chunks=num_processes, split_special_token=special_tokens_bytes[0])
+    f.close()
 
     word_like_pieces:list[dict[tuple[bytes, ...], int]] = [] # one per chunk
     
@@ -145,8 +147,9 @@ def train_bpe(
         new_token = pair[0] + pair[1]
         vocab[len(vocab)] = new_token
         
-        affected_pieces = list(pair2pieces.get(pair, set())) # 这里加list是为了复制一份快照，否则在下面的循环里修改了pair2pieces会影响到这个循环的迭代过程
+        affected_pieces = list(pair2pieces.get(pair, set()))
         for old_piece in affected_pieces:
+            assert old_piece in total_word_like_pieces, f"Old piece {old_piece} not found in total_word_like_pieces"
             # 对每个受影响的旧 piece，做以下更新：
             #   step1:从 all_pairs 扣掉这个旧 piece 的所有 pair 贡献。
             #   step2:把旧 piece 中的 best_pair 做左到右非重叠 merge。
@@ -181,13 +184,11 @@ def train_bpe(
             
             # step4
             # 从 pair2pieces里把旧 piece 从所有包含它的 pair 的映射里删除
-            for i in range(len(old_piece) - 1):
-                old_pair = (old_piece[i], old_piece[i+1])
-                if old_pair in pair2pieces and old_piece in pair2pieces[old_pair]: # 必须加这个判断。例子：(A,B,A,B)这个piece对于待修改pair(A,B)，可能执行两次remove，第二个空remove会报错
-                    pair2pieces[old_pair].remove(old_piece)
-                    # 如果这个 pair 已经没有任何 piece 了，就把这个 pair 从 pair2pieces里删除
-                    if not pair2pieces[old_pair]:
-                        del pair2pieces[old_pair]
+            unique_pairs_in_old_piece = set((old_piece[i], old_piece[i+1]) for i in range(len(old_piece) - 1))
+            for old_pair in unique_pairs_in_old_piece:
+                pair2pieces[old_pair].remove(old_piece)
+                if not pair2pieces[old_pair]: # 如果这个 pair 已经没有任何 piece 了，就把这个 pair 从 pair2pieces里删除
+                    del pair2pieces[old_pair]
             # 把新 piece 添加到 pair2pieces里对应 pair 的映射里
             for i in range(len(new_piece) - 1):
                 new_pair = (new_piece[i], new_piece[i+1])
