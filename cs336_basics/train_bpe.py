@@ -82,63 +82,123 @@ def train_bpe(
             word_like_pieces.append(chunk_word_like_pieces)
     
     # 合并所有chunk的统计结果
-    total_word_like_pieces: dict[tuple[bytes, ...], int] = {}
+    total_word_like_pieces: dict[tuple[bytes, ...], int] = {} # (piece tuple) -> count
     for chunk_word_like_piece in word_like_pieces:
-        for piece, count in chunk_word_like_piece.items():
-            total_word_like_pieces[piece] = total_word_like_pieces.get(piece, 0) + count
+        for old_piece, count in chunk_word_like_piece.items():
+            total_word_like_pieces[old_piece] = total_word_like_pieces.get(old_piece, 0) + count
     
-    # # DEBUG print
-    # word_like_pieces_sorted = sorted(total_word_like_pieces.items(), key=lambda x: x[1], reverse=True)
-    # print(f"Total unique word-like pieces: {len(total_word_like_pieces)}")
-    # # DEBUG print top 10
-    # for piece, count in word_like_pieces_sorted[:10]:
-    #     print(f"{piece}: {count}")
-
     all_pairs: dict[tuple[bytes, bytes], int] = {} # (bytes, bytes) -> count
-    for piece, count in total_word_like_pieces.items():
-        for i in range(len(piece) - 1):
-            pair = (piece[i], piece[i+1])
+    for old_piece, count in total_word_like_pieces.items():
+        for i in range(len(old_piece) - 1):
+            pair = (old_piece[i], old_piece[i+1])
             all_pairs[pair] = all_pairs.get(pair, 0) + count
-    # # DEBUG print top 10 pairs
-    # all_pairs_sorted = sorted(all_pairs.items(), key=lambda x: (x[1], x[0]), reverse=True)
-    # print(f"Total unique pairs: {len(all_pairs)}")
-    # for pair, count in all_pairs_sorted[:10]:
-    #     print(f"{pair}: {count}")
+    
+    # # 添加最频繁的 pairs 到 vocab 和 merges，直到达到 vocab_size
+    # while len(vocab) < vocab_size:
+    #     # 从all pairs中取出当前最频繁的 pair
+    #     pair, count = max(all_pairs.items(), key=lambda x: (x[1],x[0])) # 先按频次排序，频次相同则按pair的字典序排序
+    #     # 更新merges和vocab
+    #     merges.append(pair)
+    #     new_token = pair[0] + pair[1]
+    #     vocab[len(vocab)] = new_token
+    #     # 构造一个新的total_word_like_pieces，包含所有替换了当前选中的最大pair的piece
+    #     updated_word_like_pieces: dict[tuple[bytes, ...], int] = {}
+    #     for piece, piece_count in total_word_like_pieces.items():
+    #         new_piece = []
+    #         i=0 # 这个循环的目的是将当前的piece中所有当前选中的最大pair（如果有的话）替换成new_token，生成一个新的piece
+    #         while i < len(piece):
+    #             if i < len(piece) - 1 and (piece[i], piece[i+1]) == pair:
+    #                 new_piece.append(new_token)
+    #                 i += 2
+    #             else:
+    #                 new_piece.append(piece[i])
+    #                 i += 1
+    #         new_piece_tuple = tuple(new_piece)
+    #         updated_word_like_pieces[new_piece_tuple] = updated_word_like_pieces.get(new_piece_tuple, 0) + piece_count
+        
+    #     # 全量重算all_pairs
+    #     all_pairs.clear()
+    #     for piece, count in updated_word_like_pieces.items():
+    #         for i in range(len(piece) - 1):
+    #             pair = (piece[i], piece[i+1])
+    #             all_pairs[pair] = all_pairs.get(pair, 0) + count
+    #     # 更新total_word_like_pieces
+    #     total_word_like_pieces = updated_word_like_pieces
+            
+    # 上面这个循环的效率比较低，因为每次merge都要全量重算all_pairs。下面这个循环的效率更高，因为每次merge只需要更新包含了当前选中的最大pair的piece对应的pair频次，而不需要全量重算。
+    # 我们需要额外维护一个 pairs 到 piece的索引，以便在每次merge后快速找到受影响的piece并更新对应的pair频次。
+    pair2pieces: dict[tuple[bytes, bytes], set[tuple[bytes, ...]]] = {} # (bytes, bytes) -> unique pieces that contain this pair
+    # 初始化这个映射
+    for old_piece in total_word_like_pieces:
+        for i in range(len(old_piece) - 1):
+            pair = (old_piece[i], old_piece[i+1])
+            if pair not in pair2pieces:
+                pair2pieces[pair] = set()
+            pair2pieces[pair].add(old_piece)
     
     # 添加最频繁的 pairs 到 vocab 和 merges，直到达到 vocab_size
     while len(vocab) < vocab_size:
         # 从all pairs中取出当前最频繁的 pair
         pair, count = max(all_pairs.items(), key=lambda x: (x[1],x[0])) # 先按频次排序，频次相同则按pair的字典序排序
-        # 更新merges和vocab
+        # 更新merges和vocab, 每次merge都把当前选中的最大pair添加到merges里，把这个pair对应的new_token添加到vocab里
         merges.append(pair)
         new_token = pair[0] + pair[1]
         vocab[len(vocab)] = new_token
-        # 构造一个新的total_word_like_pieces，包含所有替换了当前选中的最大pair的piece
-        updated_word_like_pieces: dict[tuple[bytes, ...], int] = {}
-        for piece, piece_count in total_word_like_pieces.items():
+        
+        affected_pieces = list(pair2pieces.get(pair, set())) # 这里加list是为了复制一份快照，否则在下面的循环里修改了pair2pieces会影响到这个循环的迭代过程
+        for old_piece in affected_pieces:
+            # 对每个受影响的旧 piece，做以下更新：
+            #   step1:从 all_pairs 扣掉这个旧 piece 的所有 pair 贡献。
+            #   step2:把旧 piece 中的 best_pair 做左到右非重叠 merge。
+            #   step3:把新 piece 的所有 pair 贡献加回 all_pairs。
+            #   step4:更新 pair -> pieces 里旧 piece / 新 piece 的关系。
+            #   step5:把旧 piece 从 total_word_like_pieces 里删除，把新 piece 加入 total_word_like_pieces。
+            
+            # step1
+            piece_count = total_word_like_pieces[old_piece]
+            for i in range(len(old_piece) - 1):
+                old_pair = (old_piece[i], old_piece[i+1])
+                all_pairs[old_pair] -= piece_count
+                if all_pairs[old_pair] == 0:
+                    del all_pairs[old_pair]
+            
+            # step2
             new_piece = []
-            i=0 # 这个循环的目的是将当前的piece中所有当前选中的最大pair（如果有的话）替换成new_token，生成一个新的piece
-            while i < len(piece):
-                if i < len(piece) - 1 and (piece[i], piece[i+1]) == pair:
+            i=0
+            while i < len(old_piece):
+                if i < len(old_piece) - 1 and (old_piece[i], old_piece[i+1]) == pair:
                     new_piece.append(new_token)
                     i += 2
                 else:
-                    new_piece.append(piece[i])
+                    new_piece.append(old_piece[i])
                     i += 1
             new_piece_tuple = tuple(new_piece)
-            updated_word_like_pieces[new_piece_tuple] = updated_word_like_pieces.get(new_piece_tuple, 0) + piece_count
-        
-        # 全量重算all_pairs
-        all_pairs.clear()
-        for piece, count in updated_word_like_pieces.items():
-            for i in range(len(piece) - 1):
-                pair = (piece[i], piece[i+1])
-                all_pairs[pair] = all_pairs.get(pair, 0) + count
-        # 更新total_word_like_pieces
-        total_word_like_pieces = updated_word_like_pieces
             
-        
+            # step3
+            for i in range(len(new_piece) - 1):
+                new_pair = (new_piece[i], new_piece[i+1])
+                all_pairs[new_pair] = all_pairs.get(new_pair, 0) + piece_count
             
+            # step4
+            # 从 pair2pieces里把旧 piece 从所有包含它的 pair 的映射里删除
+            for i in range(len(old_piece) - 1):
+                old_pair = (old_piece[i], old_piece[i+1])
+                if old_pair in pair2pieces and old_piece in pair2pieces[old_pair]: # 必须加这个判断。例子：(A,B,A,B)这个piece对于待修改pair(A,B)，可能执行两次remove，第二个空remove会报错
+                    pair2pieces[old_pair].remove(old_piece)
+                    # 如果这个 pair 已经没有任何 piece 了，就把这个 pair 从 pair2pieces里删除
+                    if not pair2pieces[old_pair]:
+                        del pair2pieces[old_pair]
+            # 把新 piece 添加到 pair2pieces里对应 pair 的映射里
+            for i in range(len(new_piece) - 1):
+                new_pair = (new_piece[i], new_piece[i+1])
+                if new_pair not in pair2pieces:
+                    pair2pieces[new_pair] = set()
+                pair2pieces[new_pair].add(new_piece_tuple)
+            
+            # step5
+            del total_word_like_pieces[old_piece]
+            total_word_like_pieces[new_piece_tuple] = total_word_like_pieces.get(new_piece_tuple, 0) + piece_count
+    
     return vocab, merges
 
 
