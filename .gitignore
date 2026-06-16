@@ -164,4 +164,5 @@ cython_debug/
 
 data/
 data.nosync/
+output.nosync/
 .uv-cache/
