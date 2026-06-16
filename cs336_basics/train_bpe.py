@@ -7,6 +7,18 @@ from cs336_basics.pretokenization import find_chunk_boundaries
 def _count_word_like_pieces(
     args: tuple[str, int, int, list[bytes]],
 ) -> dict[tuple[bytes, ...], int]:
+    """Given a chunk of the input file defined by start and end byte offsets,
+    return a dictionary mapping each word-like piece (represented as a tuple of byte tokens) in that chunk to its frequency count.
+    The special tokens should be treated as separate pieces and should not be split.
+    Args:
+        args (tuple[str, int, int, list[bytes]]): A tuple containing:
+            - input_path (str): The path to the input file.
+            - start (int): The starting byte offset of the chunk.
+            - end (int): The ending byte offset of the chunk.
+            - special_tokens_bytes (list[bytes]): A list of special tokens represented as bytes. These should be treated as separate pieces and not split.
+    Returns:
+        dict[tuple[bytes, ...], int]: A dictionary mapping each word-like piece (represented as a tuple of byte tokens) to its frequency count in the chunk.
+    """
     input_path, start, end, special_tokens_bytes = args
     chunk_word_like_pieces: dict[tuple[bytes, ...], int] = {}
     with open(input_path, "rb") as f:
@@ -273,6 +285,11 @@ def deserialize_vocab_and_merges(
     return vocab, merges
 
 
+def is_this_in_vocabs(token_bytes: bytes, vocab: dict[int, bytes]) -> bool:
+    """Helper function to check if a given token_bytes is already in the vocab."""
+    return any(token_bytes == v for v in vocab.values())
+
+
 if __name__ == "__main__":
     rvocab, rmerges = train_bpe(
         input_path="/Users/daniel/Documents/cs336/homework/assignment1-basics/data.nosync/TinyStoriesV2-GPT4-valid.txt",
@@ -286,12 +303,12 @@ if __name__ == "__main__":
         vocab_filepath="/Users/daniel/Documents/cs336/homework/assignment1-basics/output.nosync/vocab.json",
         merges_filepath="/Users/daniel/Documents/cs336/homework/assignment1-basics/output.nosync/merges.json",
     )
-    
+
     deserialized_vocab, deserialized_merges = deserialize_vocab_and_merges(
         vocab_filepath="/Users/daniel/Documents/cs336/homework/assignment1-basics/output.nosync/vocab.json",
         merges_filepath="/Users/daniel/Documents/cs336/homework/assignment1-basics/output.nosync/merges.json",
     )
-    
+
     # print last 10 vocab items
     print("last 10 vocab items:")
     for token_id in range(len(deserialized_vocab) - 10, len(deserialized_vocab)):
@@ -300,5 +317,3 @@ if __name__ == "__main__":
     print("\nTop 10 merges:")
     for i in range(10):
         print(f"{i}: {deserialized_merges[i]}")
-    
-    
