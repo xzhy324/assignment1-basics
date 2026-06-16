@@ -4,6 +4,7 @@ from collections.abc import Iterable, Iterator
 
 from cs336_basics.train_bpe import deserialize_vocab_and_merges
 import regex as re
+import os
 
 
 class Tokenizer:
@@ -158,24 +159,29 @@ class Tokenizer:
 
 if __name__ == "__main__":
     # Example usage of the Tokenizer class
+    THIS_FILEPATH = os.path.abspath(__file__)
+    VOCAB_FILEPATH = os.path.join(os.path.dirname(THIS_FILEPATH), "../output/TinyStoriesV2-GPT4-train.txt_vocab.json")
+    MERGES_FILEPATH = os.path.join(os.path.dirname(THIS_FILEPATH), "../output/TinyStoriesV2-GPT4-train.txt_merges.json")
+
+    TEST_TEXT = "Once upon a time, there was a little cat named Whiskers. <|endoftext|>"
+
     rvocab, rmerges = deserialize_vocab_and_merges(
-        vocab_filepath="/Users/daniel/Documents/cs336/homework/assignment1-basics/output.nosync/vocab.json",
-        merges_filepath="/Users/daniel/Documents/cs336/homework/assignment1-basics/output.nosync/merges.json",
+        vocab_filepath=VOCAB_FILEPATH,
+        merges_filepath=MERGES_FILEPATH,
     )
 
     tokenizer = Tokenizer(
         vocab=rvocab,
         merges=rmerges,
-        special_tokens=["<|endoftext|>", "<|endoftext|><|endoftext|>"],
+        special_tokens=["<|endoftext|>"],
     )
 
     # Example encoding and decoding (these will raise NotImplementedError until implemented)
-    TEST_TEXT = "Hello, how <|endoftext|><|endoftext|> are you?<|endoftext|>"
     encoded = tokenizer.encode(TEST_TEXT)
-    # from cs336_basics.train_bpe import is_this_in_vocabs
-    # test_str = "Hello"
-    # print(f"Is the token '{test_str}' in the vocab? {is_this_in_vocabs(test_str.encode('utf-8'), rvocab)}")
     print(encoded)
     decoded = tokenizer.decode(encoded)
     print(decoded)
     assert TEST_TEXT == decoded, "Decoded text does not match original text!"
+
+    compression_ratio = len(TEST_TEXT.encode("utf-8")) / len(encoded)
+    print(f"Compression ratio: {compression_ratio:.2f}")

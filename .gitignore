@@ -162,7 +162,14 @@ cython_debug/
 .ruff_cache/
 *.zip
 
+
+# Local folders
+.gitignore
 data/
 data.nosync/
 output.nosync/
+output/
+logs/
 .uv-cache/
+.docker-venv
+.DS_Store

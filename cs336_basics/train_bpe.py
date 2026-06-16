@@ -84,7 +84,10 @@ def train_bpe(
     # 将输入按照并行线程数切分成多个 chunk，每个 chunk 各自做pretokenization，统计 word-like piece 的频次，然后合并统计结果
     special_tokens_bytes = [token.encode("utf-8") for token in special_tokens]
     f = open(input_path, "rb")
-    num_processes = max(1, os.cpu_count() - 1)  # leave 1 CPU free
+    default_num_processes = max(1, (os.cpu_count() or 2) - 1)  # leave 1 CPU free
+    num_processes = max(
+        1, int(os.environ.get("BPE_NUM_PROCESSES", default_num_processes))
+    )
     assert (
         special_tokens_bytes[0] == b"<|endoftext|>"
     ), "The first special token must be <|endoftext|> for the chunk boundary finding logic to work correctly."
@@ -167,7 +170,9 @@ def train_bpe(
             pair2pieces[pair].add(old_piece)
 
     # 添加最频繁的 pairs 到 vocab 和 merges，直到达到 vocab_size
-    while len(vocab) < vocab_size:
+    while len(vocab) < vocab_size and all_pairs:
+        if len(vocab) % 1000 == 0:
+            print(f"Current vocab size: {len(vocab)}")
         # 从all pairs中取出当前最频繁的 pair
         pair, count = max(
             all_pairs.items(), key=lambda x: (x[1], x[0])
@@ -291,22 +296,42 @@ def is_this_in_vocabs(token_bytes: bytes, vocab: dict[int, bytes]) -> bool:
 
 
 if __name__ == "__main__":
+    THIS_FILEPATH = os.path.abspath(__file__)
+    DATASET_PATH = os.path.join(
+        os.path.dirname(THIS_FILEPATH), "../data/TinyStoriesV2-GPT4-valid.txt"
+    )
+    VOCAB_SIZE = 10000
+    SPECIAL_TOKENS = ["<|endoftext|>"]
+    
+    OUTPUT_DIR = os.path.join(os.path.dirname(THIS_FILEPATH), "../output")
+    filename = os.path.basename(DATASET_PATH)
+    vocab_filepath = os.path.join(OUTPUT_DIR, f"{filename}_vocab.json")
+    merges_filepath = os.path.join(OUTPUT_DIR, f"{filename}_merges.json")
+
+    print("Training BPE tokenizer...")
+    print(f"Input dataset: {DATASET_PATH}")
+    print(f"Output vocab file: {vocab_filepath}")
+    print(f"Output merges file: {merges_filepath}")
+    print(f"Vocabulary size: {VOCAB_SIZE}")
+    print(f"Special tokens: {SPECIAL_TOKENS}")
+    print("\n===================Starting training...=========================\n")
+
     rvocab, rmerges = train_bpe(
-        input_path="/Users/daniel/Documents/cs336/homework/assignment1-basics/data.nosync/TinyStoriesV2-GPT4-valid.txt",
-        vocab_size=10000,
-        special_tokens=["<|endoftext|>"],
+        input_path=DATASET_PATH,
+        vocab_size=VOCAB_SIZE,
+        special_tokens=SPECIAL_TOKENS,
     )
 
     serialize_vocab_and_merges(
         rvocab,
         rmerges,
-        vocab_filepath="/Users/daniel/Documents/cs336/homework/assignment1-basics/output.nosync/vocab.json",
-        merges_filepath="/Users/daniel/Documents/cs336/homework/assignment1-basics/output.nosync/merges.json",
+        vocab_filepath=vocab_filepath,
+        merges_filepath=merges_filepath,
     )
 
     deserialized_vocab, deserialized_merges = deserialize_vocab_and_merges(
-        vocab_filepath="/Users/daniel/Documents/cs336/homework/assignment1-basics/output.nosync/vocab.json",
-        merges_filepath="/Users/daniel/Documents/cs336/homework/assignment1-basics/output.nosync/merges.json",
+        vocab_filepath=vocab_filepath,
+        merges_filepath=merges_filepath,
     )
 
     # print last 10 vocab items
