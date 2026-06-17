@@ -5,8 +5,8 @@ set -euo pipefail
 # Defaults are tuned for this host: arm64, 10 CPU cores, 16 GiB RAM.
 
 PROFILE="${COLIMA_PROFILE:-cs336-bpe}"
-CPUS="${COLIMA_CPUS:-3}"
-MEMORY_GB="${COLIMA_MEMORY_GB:-10}"
+CPUS="${COLIMA_CPUS:-4}"
+MEMORY_GB="${COLIMA_MEMORY_GB:-12}"
 DISK_GB="${COLIMA_DISK_GB:-30}"
 WORKSPACE="${CS336_WORKSPACE:-/Users/daniel/projs/cs336homework/assignment1-basics}"
 
@@ -55,18 +55,19 @@ cat <<'EOF'
 Run OWT BPE inside this capped Colima profile:
 
 docker run --rm -it --name cs336-bpe-owt \
-  --cpus=2 \
+  --cpus=3 \
   --memory=9g \
   --memory-swap=9g \
   --user "$(id -u):$(id -g)" \
   -e HOME=/tmp \
   -e UV_CACHE_DIR=/work/.uv-cache \
   -e UV_PROJECT_ENVIRONMENT=/work/.docker-venv \
-  -e BPE_NUM_PROCESSES=2 \
+  -e BPE_NUM_PROCESSES=3 \
+  -e BPE_NUM_CHUNKS=32 \
   -v /Users/daniel/projs/cs336homework/assignment1-basics:/work \
   -w /work \
   ghcr.io/astral-sh/uv:python3.12-bookworm \
-  bash -lc 'uv run python cs336_basics/train_bpe.py > logs/owt-bpe-$(date +%Y%m%d-%H%M%S).log 2>&1'
+  bash -lc 'uv run python -u cs336_basics/train_bpe.py > logs/owt-bpe-$(date +%Y%m%d-%H%M%S).log 2>&1'
 
 Useful controls:
   colima status cs336-bpe

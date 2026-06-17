@@ -2,6 +2,8 @@ import os
 from concurrent.futures import ProcessPoolExecutor
 import regex as re
 from cs336_basics.pretokenization import find_chunk_boundaries
+from cs336_basics.analysis import log_mem
+from cs336_basics.configs.bpe_train_config import load_config
 
 
 def _count_word_like_pieces(
@@ -23,7 +25,10 @@ def _count_word_like_pieces(
     chunk_word_like_pieces: dict[tuple[bytes, ...], int] = {}
     with open(input_path, "rb") as f:
         f.seek(start)
-        chunk = f.read(end - start).decode("utf-8", errors="ignore")
+        log_mem(f"Reading chunk {start}-{end} of {input_path}")
+        raw = f.read(end - start)
+        chunk = raw.decode("utf-8", errors="ignore")
+        log_mem(f"Finished reading and decoding raw data {start}-{end} of {input_path}")
 
     # 先按照special tokens将大chunk直接切分成多个小chunk
     special_tokens_pattern = b"|".join(
@@ -83,16 +88,18 @@ def train_bpe(
 
     # 将输入按照并行线程数切分成多个 chunk，每个 chunk 各自做pretokenization，统计 word-like piece 的频次，然后合并统计结果
     special_tokens_bytes = [token.encode("utf-8") for token in special_tokens]
+    
+    default_workers = max(1, (os.cpu_count() or 2) - 1)
+    num_workers = int(kwargs.get("num_workers", os.environ.get("BPE_NUM_PROCESSES", default_workers)))
+    assert num_workers > 0, "num_workers must be greater than 0"
+    num_chunks = int(kwargs.get("num_chunks", os.environ.get("BPE_NUM_CHUNKS", num_workers)))
+    
     f = open(input_path, "rb")
-    default_num_processes = max(1, (os.cpu_count() or 2) - 1)  # leave 1 CPU free
-    num_processes = max(
-        1, int(os.environ.get("BPE_NUM_PROCESSES", default_num_processes))
-    )
     assert (
         special_tokens_bytes[0] == b"<|endoftext|>"
     ), "The first special token must be <|endoftext|> for the chunk boundary finding logic to work correctly."
     boundaries = find_chunk_boundaries(
-        f, desired_num_chunks=num_processes, split_special_token=special_tokens_bytes[0]
+        f, desired_num_chunks=num_chunks, split_special_token=special_tokens_bytes[0]
     )
     f.close()
 
@@ -100,7 +107,7 @@ def train_bpe(
 
     # 并行统计每个 chunk 里的 word-like piece 频次
     chunk_ranges = list(zip(boundaries[:-1], boundaries[1:]))
-    with ProcessPoolExecutor(max_workers=num_processes) as executor:
+    with ProcessPoolExecutor(max_workers=num_workers) as executor:
         for chunk_word_like_pieces in executor.map(
             _count_word_like_pieces,
             (
@@ -110,15 +117,22 @@ def train_bpe(
         ):
             word_like_pieces.append(chunk_word_like_pieces)
 
+    # (piece tuple) -> count
+    # At beginning, it looks like: {(l,o,w): 5, (l,o,w,e,r): 2, (w,i,d,e,s,t): 3}
+    # and it will evolve like this:
+    # after merging (l,o) -> (lo): {(lo,w): 5, (lo,w,e,r): 2, (w,i,d,e,s,t): 3}
+    total_word_like_pieces: dict[tuple[bytes, ...], int] = {}
     # 合并所有chunk的统计结果
-    total_word_like_pieces: dict[tuple[bytes, ...], int] = {}  # (piece tuple) -> count
     for chunk_word_like_piece in word_like_pieces:
         for old_piece, count in chunk_word_like_piece.items():
             total_word_like_pieces[old_piece] = (
                 total_word_like_pieces.get(old_piece, 0) + count
             )
-
-    all_pairs: dict[tuple[bytes, bytes], int] = {}  # (bytes, bytes) -> count
+    # (bytes, bytes) -> count 统计相邻token对的频次
+    # At beginning, it looks like: {(l,o): 7, (o,w): 7, (w,e): 2, (e,r): 2, (w,i): 3, (i,d): 3, (d,e): 3, (e,s): 3, (s,t): 3}
+    # and it will evolve like this:
+    # after merging (l,o) -> (lo): {(lo,w): 7, (w,e): 2, (e,r): 2, (w,i): 3, (i,d): 3, (d,e): 3, (e,s): 3, (s,t): 3}
+    all_pairs: dict[tuple[bytes, bytes], int] = {}
     for old_piece, count in total_word_like_pieces.items():
         for i in range(len(old_piece) - 1):
             pair = (old_piece[i], old_piece[i + 1])
@@ -296,17 +310,19 @@ def is_this_in_vocabs(token_bytes: bytes, vocab: dict[int, bytes]) -> bool:
 
 
 if __name__ == "__main__":
-    THIS_FILEPATH = os.path.abspath(__file__)
-    DATASET_PATH = os.path.join(
-        os.path.dirname(THIS_FILEPATH), "../data/TinyStoriesV2-GPT4-valid.txt"
-    )
-    VOCAB_SIZE = 10000
-    SPECIAL_TOKENS = ["<|endoftext|>"]
     
-    OUTPUT_DIR = os.path.join(os.path.dirname(THIS_FILEPATH), "../output")
+    config = load_config()
+    print("Training BPE tokenizer with the following config:")
+    print(config)
+    DATASET_PATH = config.input_path
+    VOCAB_SIZE = config.vocab_size
+    SPECIAL_TOKENS = [token for token in config.special_tokens]
+
+    OUTPUT_DIR = config.output_dir
     filename = os.path.basename(DATASET_PATH)
     vocab_filepath = os.path.join(OUTPUT_DIR, f"{filename}_vocab.json")
     merges_filepath = os.path.join(OUTPUT_DIR, f"{filename}_merges.json")
+
 
     print("Training BPE tokenizer...")
     print(f"Input dataset: {DATASET_PATH}")
@@ -320,6 +336,8 @@ if __name__ == "__main__":
         input_path=DATASET_PATH,
         vocab_size=VOCAB_SIZE,
         special_tokens=SPECIAL_TOKENS,
+        num_workers=config.num_workers,
+        num_chunks=config.num_chunks,
     )
 
     serialize_vocab_and_merges(
