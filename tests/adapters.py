@@ -29,7 +29,9 @@ def run_linear(
         Float[Tensor, "... d_out"]: The transformed output of your linear module.
     """
 
-    raise NotImplementedError
+    from cs336_basics.linear import run_linear as run_linear_impl
+
+    return run_linear_impl(d_in, d_out, weights, in_features)
 
 
 def run_embedding(
@@ -452,7 +454,9 @@ def run_cross_entropy(
     raise NotImplementedError
 
 
-def run_gradient_clipping(parameters: Iterable[torch.nn.Parameter], max_l2_norm: float) -> None:
+def run_gradient_clipping(
+    parameters: Iterable[torch.nn.Parameter], max_l2_norm: float
+) -> None:
     """Given a set of parameters, clip their combined gradients to have l2 norm at most max_l2_norm.
 
     Args:
@@ -560,6 +564,7 @@ def get_tokenizer(
         A BPE tokenizer that uses the provided vocab, merges, and special tokens.
     """
     from cs336_basics.tokenizer import Tokenizer as TokenizerImpl
+
     return TokenizerImpl(vocab, merges, special_tokens or [])
 
 
@@ -591,4 +596,5 @@ def run_train_bpe(
                 Merges are ordered by order of creation.
     """
     from cs336_basics.train_bpe import train_bpe as train_bpe_impl
+
     return train_bpe_impl(input_path, vocab_size, special_tokens, **kwargs)
