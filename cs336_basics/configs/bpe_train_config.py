@@ -15,12 +15,13 @@ class BPETrainConfig:
 
 def load_config() -> BPETrainConfig:
     base_dir = Path(__file__).resolve().parent.parent.parent
-    default_input = base_dir / "data/TinyStoriesV2-GPT4-train.txt"
-
+    data_dir = os.environ.get("BPE_DATA_RELATIVE_DIR", str(base_dir / "data/TinyStoriesV2-GPT4-train.txt"))
+    default_input = base_dir / data_dir
+    
     cpu_count = os.cpu_count() or 2
     num_workers = int(os.environ.get("BPE_NUM_PROCESSES", str(cpu_count)))
     return BPETrainConfig(
-        input_path=Path(os.environ.get("BPE_INPUT_PATH", default_input)).resolve(),
+        input_path=default_input.resolve(),
         output_dir=(base_dir / "output").resolve(),
         vocab_size=int(os.environ.get("BPE_VOCAB_SIZE", "10000")),
         special_tokens=tuple(

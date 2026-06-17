@@ -25,6 +25,12 @@ if [ ! -d "$WORKSPACE" ]; then
   exit 1
 fi
 
+# if the profile is running, stop it first to apply new resource limits
+if colima status "$PROFILE" >/dev/null 2>&1; then
+  echo "Stopping existing Colima profile: $PROFILE"
+  colima stop "$PROFILE"
+fi
+
 echo "Starting Colima profile: $PROFILE"
 echo "  cpus:      $CPUS"
 echo "  memory:    ${MEMORY_GB}GiB"
@@ -50,10 +56,6 @@ echo
 echo "Docker VM resources:"
 docker info --format 'OS={{.OperatingSystem}} CPUs={{.NCPU}} MemBytes={{.MemTotal}}'
 
-cat <<'EOF'
-
-Run OWT BPE inside this capped Colima profile:
-
 docker run --rm -it --name cs336-bpe-owt \
   --cpus=3 \
   --memory=9g \
@@ -64,13 +66,10 @@ docker run --rm -it --name cs336-bpe-owt \
   -e UV_PROJECT_ENVIRONMENT=/work/.docker-venv \
   -e BPE_NUM_PROCESSES=3 \
   -e BPE_NUM_CHUNKS=32 \
+  -e BPE_VOCAB_SIZE=10000 \
+  -e BPE_DATA_RELATIVE_DIR=data/TinyStoriesV2-GPT4-train.txt \
   -v /Users/daniel/projs/cs336homework/assignment1-basics:/work \
   -w /work \
   ghcr.io/astral-sh/uv:python3.12-bookworm \
   bash -lc 'uv run python -u cs336_basics/train_bpe.py > logs/owt-bpe-$(date +%Y%m%d-%H%M%S).log 2>&1'
 
-Useful controls:
-  colima status cs336-bpe
-  colima stop cs336-bpe
-  docker logs -f cs336-bpe-owt
-EOF

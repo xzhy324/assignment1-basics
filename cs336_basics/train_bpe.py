@@ -103,7 +103,11 @@ def train_bpe(
     )
     f.close()
 
-    word_like_pieces: list[dict[tuple[bytes, ...], int]] = []  # one per chunk
+    # (piece tuple) -> count
+    # At beginning, it looks like: {(l,o,w): 5, (l,o,w,e,r): 2, (w,i,d,e,s,t): 3}
+    # and it will evolve like this:
+    # after merging (l,o) -> (lo): {(lo,w): 5, (lo,w,e,r): 2, (w,i,d,e,s,t): 3}
+    total_word_like_pieces: dict[tuple[bytes, ...], int] = {}  # one per chunk
 
     # 并行统计每个 chunk 里的 word-like piece 频次
     chunk_ranges = list(zip(boundaries[:-1], boundaries[1:]))
@@ -115,19 +119,10 @@ def train_bpe(
                 for start, end in chunk_ranges
             ),
         ):
-            word_like_pieces.append(chunk_word_like_pieces)
-
-    # (piece tuple) -> count
-    # At beginning, it looks like: {(l,o,w): 5, (l,o,w,e,r): 2, (w,i,d,e,s,t): 3}
-    # and it will evolve like this:
-    # after merging (l,o) -> (lo): {(lo,w): 5, (lo,w,e,r): 2, (w,i,d,e,s,t): 3}
-    total_word_like_pieces: dict[tuple[bytes, ...], int] = {}
-    # 合并所有chunk的统计结果
-    for chunk_word_like_piece in word_like_pieces:
-        for old_piece, count in chunk_word_like_piece.items():
-            total_word_like_pieces[old_piece] = (
-                total_word_like_pieces.get(old_piece, 0) + count
-            )
+            for piece, count in chunk_word_like_pieces.items():
+                total_word_like_pieces[piece] = total_word_like_pieces.get(piece, 0) + count
+    log_mem(f"Finished counting word-like pieces chunks")
+    
     # (bytes, bytes) -> count 统计相邻token对的频次
     # At beginning, it looks like: {(l,o): 7, (o,w): 7, (w,e): 2, (e,r): 2, (w,i): 3, (i,d): 3, (d,e): 3, (e,s): 3, (s,t): 3}
     # and it will evolve like this:
@@ -137,7 +132,7 @@ def train_bpe(
         for i in range(len(old_piece) - 1):
             pair = (old_piece[i], old_piece[i + 1])
             all_pairs[pair] = all_pairs.get(pair, 0) + count
-
+    log_mem(f"Finished counting all pairs in {input_path}")
     # # 添加最频繁的 pairs 到 vocab 和 merges，直到达到 vocab_size
     # while len(vocab) < vocab_size:
     #     # 从all pairs中取出当前最频繁的 pair
@@ -182,11 +177,11 @@ def train_bpe(
             if pair not in pair2pieces:
                 pair2pieces[pair] = set()
             pair2pieces[pair].add(old_piece)
-
+    log_mem(f"Finished building pair to pieces mapping for {input_path}")
     # 添加最频繁的 pairs 到 vocab 和 merges，直到达到 vocab_size
     while len(vocab) < vocab_size and all_pairs:
         if len(vocab) % 1000 == 0:
-            print(f"Current vocab size: {len(vocab)}")
+            log_mem(f"Current vocab size: {len(vocab)}")
         # 从all pairs中取出当前最频繁的 pair
         pair, count = max(
             all_pairs.items(), key=lambda x: (x[1], x[0])

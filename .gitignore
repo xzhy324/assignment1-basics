@@ -165,6 +165,7 @@ cython_debug/
 
 # Local folders
 .gitignore
+.gitignore?
 data/
 data.nosync/
 output.nosync/
@@ -173,3 +174,4 @@ logs/
 .uv-cache/
 .docker-venv
 .DS_Store
+.DS_Store?
