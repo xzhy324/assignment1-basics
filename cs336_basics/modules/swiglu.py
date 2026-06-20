@@ -33,18 +33,18 @@ class SwiGLU(torch.nn.Module):
             self.d_ff = d_ff
 
         self.w1 = torch.nn.Parameter(
-            torch.empty((d_ff, d_model), device=device, dtype=dtype)
+            torch.empty((self.d_ff, self.d_model), device=device, dtype=dtype)
         )
         self.w3 = torch.nn.Parameter(
-            torch.empty((d_ff, d_model), device=device, dtype=dtype)
+            torch.empty((self.d_ff, self.d_model), device=device, dtype=dtype)
         )
         self.w2 = torch.nn.Parameter(
-            torch.empty((d_model, d_ff), device=device, dtype=dtype)
+            torch.empty((self.d_model, self.d_ff), device=device, dtype=dtype)
         )
 
         # initialize the linear weights using truncated normal distribution
         # 𝒩︀(𝜇 = 0, 𝜎2 = 2/(𝑑in+𝑑out) ) truncated at [−3𝜎, 3𝜎].
-        std = (2 / (d_ff + d_model)) ** 0.5
+        std = (2 / (self.d_ff + self.d_model)) ** 0.5
         torch.nn.init.trunc_normal_(self.w1, mean=0.0, std=std, a=-3 * std, b=3 * std)
         torch.nn.init.trunc_normal_(self.w3, mean=0.0, std=std, a=-3 * std, b=3 * std)
         torch.nn.init.trunc_normal_(self.w2, mean=0.0, std=std, a=-3 * std, b=3 * std)
@@ -65,7 +65,8 @@ class SwiGLU(torch.nn.Module):
 
 
 def _silu(x: Tensor):
-    return x / (1 + torch.exp(-x))
+    # return x / (1 + torch.exp(-x))
+    return torch.nn.SiLU().forward(x)
 
 # glue code for `uv run pytest -k test_swiglu`
 def run_swiglu(
