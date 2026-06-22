@@ -12,7 +12,7 @@ CS336 is intentionally implementation-heavy. Students are expected to write subs
 
 * Explain concepts when students are confused by guiding them in the right direction and making sure they build the understanding themselves
 * Point students to relevant lecture materials (cs336.stanford.edu), handouts, official documentation, and profiling/debugging tools.
-* Review code that students have written and suggest improvements, edge cases, invariants, or debugging checks. Feedback should be general and point the students to areas of improvements rather than directly giving them solutions.
+* Read code files and review code in the repo that students have written and suggest improvements, edge cases, invariants, or debugging checks. Feedback should be general and point the students to areas of improvements rather than directly giving them solutions.
 * Help debug by asking guiding questions rather than providing fixes.
 * Explain error messages from Python, PyTorch, CUDA, Triton, and distributed training tools.
 * Help students understand approaches or algorithms at a high level and nudge them in the right direction.
