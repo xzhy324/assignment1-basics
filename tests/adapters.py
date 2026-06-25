@@ -88,7 +88,7 @@ def run_swiglu(
     # swiglu.w2.weight.data = w2_weight
     # swiglu.w3.weight.data = w3_weight
     from cs336_basics.modules.swiglu import run_swiglu as run_swiglu_impl
-    
+
     return run_swiglu_impl(d_model, d_ff, w1_weight, w2_weight, w3_weight, in_features)
 
 
@@ -110,7 +110,11 @@ def run_scaled_dot_product_attention(
     Returns:
         Float[Tensor, " ... queries d_v"]: Output of SDPA
     """
-    raise NotImplementedError
+    from cs336_basics.functions.scaled_dot_product_attention import (
+        run_scaled_dot_product_attention as run_scaled_dot_product_attention_impl,
+    )
+
+    return run_scaled_dot_product_attention_impl(Q, K, V, mask)
 
 
 def run_multihead_self_attention(
@@ -207,7 +211,7 @@ def run_rope(
         Float[Tensor, " ... sequence_length d_k"]: Tensor with RoPEd input.
     """
     from cs336_basics.modules.rope import run_rope as run_rope_impl
-    
+
     return run_rope_impl(d_k, theta, max_seq_len, in_query_or_key, token_positions)
 
 
@@ -387,7 +391,7 @@ def run_rmsnorm(
         RMSNorm of the `in_features`.
     """
     from cs336_basics.modules.rmsnorm import run_rmsnorm as run_rmsnorm_impl
-    
+
     return run_rmsnorm_impl(d_model, eps, weights, in_features)
 
 
@@ -442,9 +446,8 @@ def run_softmax(in_features: Float[Tensor, " ..."], dim: int) -> Float[Tensor, "
         softmax normalizing the specified `dim`.
     """
     from cs336_basics.functions.softmax import run_softmax as run_softmax_impl
-    
+
     return run_softmax_impl(in_features, dim)
-    
 
 
 def run_cross_entropy(

@@ -3,7 +3,7 @@ from jaxtyping import Bool, Float, Int
 from torch import Tensor
 
 
-def softmax(x: torch.Tensor, dim: int):
+def softmax(x: Tensor, dim: int) -> Tensor:
     """use softmax to normal the dim'th dimension of tensor x
     Args:
         x: input tensor
