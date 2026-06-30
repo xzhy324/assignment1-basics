@@ -28,7 +28,7 @@ class SwiGLU(torch.nn.Module):
         self.d_model = d_model
         if d_ff == None:
             raw = int(d_model * 8 / 3)
-            self.d_ff = raw + 64 - raw % 64  # find the nearest that 64 devides
+            self.d_ff = ((raw + 63) // 64) * 64  # find the nearest that 64 devides
         else:
             self.d_ff = d_ff
 
@@ -68,6 +68,7 @@ def _silu(x: Tensor):
     # return x / (1 + torch.exp(-x))
     return torch.nn.SiLU().forward(x)
 
+
 # glue code for `uv run pytest -k test_swiglu`
 def run_swiglu(
     d_model: int,
@@ -91,7 +92,7 @@ def run_swiglu(
     Returns:
         Float[Tensor, "... d_model"]: Output embeddings of the same shape as the input embeddings.
     """
-    ffn_layer = SwiGLU(d_model=d_model,d_ff=d_ff)
+    ffn_layer = SwiGLU(d_model=d_model, d_ff=d_ff)
     ffn_layer.w1.data = w1_weight
     ffn_layer.w2.data = w2_weight
     ffn_layer.w3.data = w3_weight

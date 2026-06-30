@@ -77,11 +77,10 @@ def count_matmul_flops(
         )
         return attention + ffn
 
-    embedding = matmul_flops(T, D, V)  # input_embedding @ W_e
     transformer_blocks = num_layers * count_transformer_block_matmul_flops(D, num_heads, d_ff, T)
     final_layer_norm = 0  # RMSNorm is elementwise, so arithmetic intensity is not increased as the matrix size increases
     lm_head = matmul_flops(T, D, V)  # lm_head @ W
-    return embedding + transformer_blocks + final_layer_norm + lm_head
+    return transformer_blocks + final_layer_norm + lm_head
 
 
 if __name__ == "__main__":

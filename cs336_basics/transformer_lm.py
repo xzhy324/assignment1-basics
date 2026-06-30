@@ -1,6 +1,7 @@
 import torch
 from torch import Tensor
 from jaxtyping import Float, Int
+from typing import cast
 
 from cs336_basics.modules.embedding import Embedding
 from cs336_basics.modules.rope import RotaryPositionalEmbedding
@@ -21,7 +22,7 @@ class TransformerLM(torch.nn.Module):
     context_length: int
     input_embedding: Embedding
     rope_module: RotaryPositionalEmbedding
-    transformer_blocks: list[TransformerBlock]
+    transformer_blocks: torch.nn.ModuleList # TransformerBlock
     final_layer_norm: RMSNorm
     lm_head: Linear
 
@@ -71,9 +72,12 @@ class TransformerLM(torch.nn.Module):
             max_seq_len=context_length,
             device=device,
         )
-        for i in range(num_layers):
-            self.transformer_blocks[i] = TransformerBlock(
-                d_model, num_heads, d_ff, self.rope_module, device=device, dtype=dtype
+        self.transformer_blocks = torch.nn.ModuleList()
+        for _ in range(num_layers):
+            self.transformer_blocks.append(
+                TransformerBlock(
+                    d_model, num_heads, d_ff, self.rope_module, device=device, dtype=dtype
+                )
             )
         self.final_layer_norm = RMSNorm(d_model=d_model, device=device, dtype=dtype)
         self.lm_head = Linear(
@@ -88,11 +92,11 @@ class TransformerLM(torch.nn.Module):
             torch.Tensor Output tensor of shape (batch_size, sequence_length, vocab_size)
         """
         x = self.input_embedding.forward(x)  # (B,T) -> (B,T,D)
-        for i in range(self.num_layers):
-            x = self.transformer_blocks[i].forward(x)
+        for transformer_block in self.transformer_blocks:
+            block: TransformerBlock = cast(TransformerBlock, transformer_block)
+            x = block.forward(x)  # (B,T,D) -> (B,T,D)
         x = self.final_layer_norm.forward(x)
         x = self.lm_head.forward(x)  # (B,T,D) -> (B,T,V)
-        x = softmax(x, dim=-1)
         return x
 
     def load_weights(self, weights: dict[str, Tensor]):
@@ -118,12 +122,13 @@ class TransformerLM(torch.nn.Module):
                 "ffn.w3.weight": weights[f"layers.{i}.ffn.w3.weight"],
                 "ln2.weight": weights[f"layers.{i}.ln2.weight"],
             }
-            self.transformer_blocks[i].load_weights(transformer_block_weights)
+            block: TransformerBlock = cast(TransformerBlock, self.transformer_blocks[i])
+            block.load_weights(transformer_block_weights)
         self.final_layer_norm.load_state_dict({"weight": weights["ln_final.weight"]})
         self.lm_head.load_state_dict({"weight": weights["lm_head.weight"]})
 
 
-# glue code for `uv run pytest -k test_transformer_block`
+# glue code for `uv run pytest -k test_transformer_lm`
 def run_transformer_lm(
     vocab_size: int,
     context_length: int,

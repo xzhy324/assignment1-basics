@@ -163,9 +163,6 @@ class RotaryPositionalEmbedding(torch.nn.Module):
         # [0, 1, 2]
         # 这对 KV cache 特别重要。否则模型会把新 token 当成序列开头来旋转，位置信息就错了。
         assert x.shape[-1] == self.d_k  # 保证了x最后一维长度为偶数
-        assert (
-            x.shape[-2] <= self.max_seq_len
-        ), "x's seq_len(dim=-2) should be not larger than rope's max_seq_len"
 
         # shape: (..., d_k/2)
         x_even = x[..., 0::2]
