@@ -71,6 +71,7 @@ class TransformerLM(torch.nn.Module):
             d_k=d_model // num_heads,
             max_seq_len=context_length,
             device=device,
+            dtype=dtype,
         )
         self.transformer_blocks = torch.nn.ModuleList()
         for _ in range(num_layers):

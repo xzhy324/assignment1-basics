@@ -96,6 +96,7 @@ class RotaryPositionalEmbedding(torch.nn.Module):
         d_k: int,
         max_seq_len: int,
         device: torch.device | None = None,
+        dtype: torch.dtype | None = None,
     ):
         """
         Construct the RoPE module.
@@ -105,6 +106,7 @@ class RotaryPositionalEmbedding(torch.nn.Module):
             d_k: Dimension of query/key vectors.
             max_seq_len: Maximum sequence length.
             device: Device to store precomputed buffers on.
+            dtype: Data type for the precomputed buffers.
         """
         super().__init__()
 
@@ -114,13 +116,13 @@ class RotaryPositionalEmbedding(torch.nn.Module):
 
         assert d_k % 2 == 0, f"input d_k:{d_k} is not even!"
 
-        cos = torch.empty((max_seq_len, d_k // 2), device=device)
-        sin = torch.empty((max_seq_len, d_k // 2), device=device)
+        cos = torch.empty((max_seq_len, d_k // 2), device=device, dtype=dtype)
+        sin = torch.empty((max_seq_len, d_k // 2), device=device, dtype=dtype)
 
         # 𝜃{𝑖,𝑘} = i / Θ^{2𝑘/𝑑}
         # first dimension初始化为0到i-1
-        seq_dim = torch.arange(0, max_seq_len, 1, device=device)
-        d_k_dim = torch.arange(0, d_k // 2, 1, device=device)
+        seq_dim = torch.arange(0, max_seq_len, 1, device=device, dtype=dtype)
+        d_k_dim = torch.arange(0, d_k // 2, 1, device=device, dtype=dtype)
         # second dim初始化为 Θ^{2𝑘/𝑑}
         d_k_dim = self.theta ** (d_k_dim / (d_k // 2))
         # reshape以应用广播规则
