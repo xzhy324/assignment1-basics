@@ -516,7 +516,8 @@ def run_gradient_clipping(
 
     The gradients of the parameters (parameter.grad) should be modified in-place.
     """
-    raise NotImplementedError
+    from cs336_basics.optimizers.gradient_clipping import gradient_clipping as gradient_clipping_impl
+    gradient_clipping_impl(parameters, max_l2_norm)
 
 
 def get_adamw_cls() -> Any:

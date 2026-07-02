@@ -8,7 +8,6 @@ from cs336_basics.modules.rope import RotaryPositionalEmbedding
 from cs336_basics.modules.transformer_block import TransformerBlock
 from cs336_basics.modules.rmsnorm import RMSNorm
 from cs336_basics.modules.linear import Linear
-from cs336_basics.functions.softmax import softmax
 
 
 class TransformerLM(torch.nn.Module):
