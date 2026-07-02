@@ -400,7 +400,7 @@ def run_transformer_lm(
         Float[Tensor, "batch_size sequence_length vocab_size"]: Tensor with the predicted unnormalized
         next-word distribution for each token.
     """
-    from cs336_basics.transformer_lm import run_transformer_lm as run_transformer_lm_impl
+    from cs336_basics.modules.transformer_lm import run_transformer_lm as run_transformer_lm_impl
     
     return run_transformer_lm_impl(vocab_size, context_length, d_model, num_layers, num_heads, d_ff, rope_theta, weights, in_indices)
 
