@@ -576,7 +576,9 @@ def run_save_checkpoint(
             we've completed.
         out (str | os.PathLike | BinaryIO | IO[bytes]): Path or file-like object to serialize the model, optimizer, and iteration to.
     """
-    raise NotImplementedError
+    from cs336_basics.checkpoint import save_checkpoint as save_checkpoint_impl
+    
+    return save_checkpoint_impl(model, optimizer, iteration, out)
 
 
 def run_load_checkpoint(
@@ -597,7 +599,9 @@ def run_load_checkpoint(
     Returns:
         int: the previously-serialized number of iterations.
     """
-    raise NotImplementedError
+    from cs336_basics.checkpoint import load_checkpoint as load_checkpoint_impl
+    
+    return load_checkpoint_impl(src, model, optimizer)
 
 
 def get_tokenizer(
