@@ -56,6 +56,7 @@ import einops
 #   一句话笔记
 #   先把矩阵元素看成坐标函数 A[i,k]；能拆成各轴独立函数就用 broadcasting，涉及相对位置/距离/比较就用 coordinate grid。不要从循环填表出发，要从“坐标轴如何组合成整张表”出发
 
+
 class RotaryPositionalEmbedding(torch.nn.Module):
     """
     Rotary Positional Embedding (RoPE).
@@ -132,8 +133,8 @@ class RotaryPositionalEmbedding(torch.nn.Module):
         # shape: (m,1) / (1,n) => (m,n)
         angle = seq_dim / d_k_dim
 
-        cos = torch.cos(angle) # shape: (max_seq_len, d_k // 2)
-        sin = torch.sin(angle) # shape: (max_seq_len, d_k // 2)
+        cos = torch.cos(angle)  # shape: (max_seq_len, d_k // 2)
+        sin = torch.sin(angle)  # shape: (max_seq_len, d_k // 2)
 
         self.register_buffer("cos", cos, persistent=False)
         self.register_buffer("sin", sin, persistent=False)
@@ -148,7 +149,8 @@ class RotaryPositionalEmbedding(torch.nn.Module):
 
         Args:
             x: Tensor of shape (..., seq_len, d_k).
-            token_positions: Tensor of shape (..., seq_len).
+                possible shapes include (batch, seq_len, d_k) or (seq_len, d_k) or (batch, head, seq_len, d_k).
+            token_positions: Tensor of shape (seq_len) or (batch, seq_len).
 
         Returns:
             Tensor of the same shape as x.
@@ -165,6 +167,9 @@ class RotaryPositionalEmbedding(torch.nn.Module):
         # [0, 1, 2]
         # 这对 KV cache 特别重要。否则模型会把新 token 当成序列开头来旋转，位置信息就错了。
         assert x.shape[-1] == self.d_k  # 保证了x最后一维长度为偶数
+        assert (
+            x.shape[-2] == token_positions.shape[-1]
+        ), f"x.shape[-2]:{x.shape[-2]} != token_positions.shape[-1]:{token_positions.shape[-1]}"  # 保证两个维度都是seq_len
 
         # shape: (..., d_k/2)
         x_even = x[..., 0::2]
@@ -174,6 +179,13 @@ class RotaryPositionalEmbedding(torch.nn.Module):
         # (...,seq_len,d_k/2)
         cos = self.cos[token_positions]
         sin = self.sin[token_positions]
+
+        # 对于x.shape = (batch, head, seq_len, d_k)并且token_positions.shape = (batch, seq_len)的情况
+        # cos和sin的shape需要从(batch, seq_len, d_k/2) 扩展为 (batch, 1, seq_len, d_k/2)
+        # 这样才能和x_even,x_odd的shape对齐，进行逐元素乘法
+        if len(x.shape) == 4 and len(token_positions.shape) == 2:
+            cos = cos.unsqueeze(1)  # shape: (batch, 1, seq_len, d_k/2)
+            sin = sin.unsqueeze(1)  # shape: (batch, 1, seq_len, d_k/2)
 
         # x_odd.shape= (...,seq_len,d_k/2)与cos.shape=(...,seq_len,d_k/2) 逐元素乘
         result_even = x_even * cos - x_odd * sin
