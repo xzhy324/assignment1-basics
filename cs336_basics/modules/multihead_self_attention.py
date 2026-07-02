@@ -46,8 +46,16 @@ class MultiheadSelfAttention(torch.nn.Module):
         self.weight_qkv = torch.nn.Parameter(
             torch.empty((3 * d_model, d_model), device=device, dtype=dtype)
         )
+        std = (2 / (d_model + d_model * 3)) ** 0.5
+        torch.nn.init.trunc_normal_(
+            self.weight_qkv, mean=0.0, std=std, a=-3 * std, b=3 * std
+        )
         self.weight_o = torch.nn.Parameter(
             torch.empty((d_model, d_model), device=device, dtype=dtype)
+        )
+        std = (2 / (d_model + d_model)) ** 0.5
+        torch.nn.init.trunc_normal_(
+            self.weight_o, mean=0.0, std=std, a=-3 * std, b=3 * std
         )
 
     def forward(

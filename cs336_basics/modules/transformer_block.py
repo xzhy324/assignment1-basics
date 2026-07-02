@@ -125,7 +125,7 @@ class TransformerBlock(torch.nn.Module):
         Args:
             x: Tensor has shape of (... d_model)
             token_positions: Tensor has shape of (... sequence_length) | None
-                if None, then the token positions are initialized to be [0, 1, ..., sequence_length - 1]
+                if None, then the token positions are initialized to be [batch][0, 1, ..., sequence_length - 1]
         Returns:
             Tensor has shape of (... d_model)
         """
@@ -134,7 +134,7 @@ class TransformerBlock(torch.nn.Module):
         else:
             token_positions = torch.arange(
                 x.shape[-2], device=x.device, dtype=torch.int64
-            ).expand(x.shape[:-1])
+            ) # shape: (sequence_length)
         x = x + self.attention(self.first_rmsnorm(x), token_positions=token_positions)
         x = x + self.ffn(self.second_rmsnorm(x))
         return x

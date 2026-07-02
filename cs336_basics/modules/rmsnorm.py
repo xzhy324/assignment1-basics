@@ -60,6 +60,7 @@ class RMSNorm(torch.nn.Module):
         Returns:
             Tensor of the same shape as x.
         """
+        assert x.shape[-1] == self.d_model, f"Expected last dimension of input to be {self.d_model}, but got {x.shape[-1]}"
         original_dtype = x.dtype
         x = x.to(torch.float32)
         # 这里1表示reduce之后创建一个长度为1的匿名维度，这相当于最后一维变成一个常量

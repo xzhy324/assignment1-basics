@@ -132,8 +132,8 @@ class RotaryPositionalEmbedding(torch.nn.Module):
         # shape: (m,1) / (1,n) => (m,n)
         angle = seq_dim / d_k_dim
 
-        cos = torch.cos(angle)
-        sin = torch.sin(angle)
+        cos = torch.cos(angle) # shape: (max_seq_len, d_k // 2)
+        sin = torch.sin(angle) # shape: (max_seq_len, d_k // 2)
 
         self.register_buffer("cos", cos, persistent=False)
         self.register_buffer("sin", sin, persistent=False)
