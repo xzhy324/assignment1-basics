@@ -190,6 +190,46 @@ def test_rope(numpy_snapshot, in_embeddings, d_model, theta, n_queries, pos_ids)
     numpy_snapshot.assert_match(output, atol=1e-5)
 
 
+def test_rope_batch_positions_broadcast_over_heads():
+    batch_size = 2
+    num_heads = 2
+    seq_len = 4
+    d_k = 8
+    theta = 10_000.0
+
+    base = torch.arange(batch_size * seq_len * d_k, dtype=torch.float32).reshape(batch_size, seq_len, d_k)
+    in_query_or_key = base.unsqueeze(1).expand(batch_size, num_heads, seq_len, d_k).clone()
+    token_positions = torch.tensor(
+        [
+            [0, 1, 2, 3],
+            [7, 8, 9, 10],
+        ]
+    )
+
+    output = run_rope(
+        d_k=d_k,
+        theta=theta,
+        max_seq_len=16,
+        in_query_or_key=in_query_or_key,
+        token_positions=token_positions,
+    )
+    expected_per_batch = run_rope(
+        d_k=d_k,
+        theta=theta,
+        max_seq_len=16,
+        in_query_or_key=base,
+        token_positions=token_positions,
+    )
+
+    torch.testing.assert_close(
+        output,
+        expected_per_batch.unsqueeze(1).expand_as(output),
+        rtol=0,
+        atol=0,
+        msg="Adding an attention-head axis should not change how per-batch token positions are applied.",
+    )
+
+
 def test_silu_matches_pytorch():
     x = torch.tensor(
         [

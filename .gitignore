@@ -176,3 +176,6 @@ logs/
 .DS_Store
 .DS_Store?
 .vscode/
+AGENTS.md
+AGENTS.md*
+CLAUDE.md

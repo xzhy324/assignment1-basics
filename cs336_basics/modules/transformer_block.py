@@ -125,7 +125,7 @@ class TransformerBlock(torch.nn.Module):
         Args:
             x: Tensor has shape of (... d_model)
             token_positions: Tensor has shape of (... sequence_length) | None
-                if None, then the token positions are initialized to be [batch][0, 1, ..., sequence_length - 1]
+                if None, then the token positions are initialized to be (sequence_length,)
         Returns:
             Tensor has shape of (... d_model)
         """
